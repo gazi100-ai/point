@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>পয়েন্ট শেয়ার অ্যাপ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Firebase SDK – মডুলার ভার্সন -->
+    <script src="https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js"></script>
+    <style>
+        body {
+            font-family: 'Noto Sans Bengali', sans-serif;
+            background-color: #f0f4f8;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #333;
+        }
+        .container {
+            max-width: 500px;
+            width: 100%;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        h1, h2, h3, h4 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .hidden {
+            display: none;
+        }
+        .feedback-item {
+            background: #f9f9f9;
+            border: 1px solid #eee;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .total-points {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #27ae60;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .error {
+            color: #e74c3c;
+            text-align: center;
+            margin: 10px 0;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .button-group button {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>পয়েন্ট শেয়ার অ্যাপ</h1>
+        
+        <!-- লগইন ফর্ম -->
+        <div id="login-section">
+            <h2>লগইন করুন</h2>
+            <select id="user-select">
+                <option value="noman">নোমান (noman)</option>
+                <option value="rima">রিমা (rima)</option>
+            </select>
+            <input type="password" id="password" placeholder="পাসওয়ার্ড দিন">
+            <button onclick="login()">লগইন</button>
+            <p id="login-error" class="error"></p>
+        </div>
+        
+        <!-- মেইন অ্যাপ সেকশন -->
+        <div id="app-section" class="hidden">
+            <h2>স্বাগতম, <span id="current-user"></span>!</h2>
+            <div class="button-group">
+                <button onclick="logout()">লগআউট</button>
+                <button onclick="showChangePassword()">পাসওয়ার্ড চেঞ্জ</button>
+            </div>
+            
+            <!-- পাসওয়ার্ড চেঞ্জ ফর্ম -->
+            <div id="change-password" class="hidden">
+                <h3>পাসওয়ার্ড চেঞ্জ করুন</h3>
+                <input type="password" id="old-password" placeholder="পুরানো পাসওয়ার্ড">
+                <input type="password" id="new-password" placeholder="নতুন পাসওয়ার্ড">
+                <button onclick="changePassword()">চেঞ্জ করুন</button>
+                <p id="password-error" class="error"></p>
+            </div>
+            
+            <!-- ফিডব্যাক দেওয়া -->
+            <h3>অন্যজনের কাজের উপর ফিডব্যাক দিন</h3>
+            <textarea id="feedback-text" placeholder="কাজের বর্ণনা লিখুন" rows="4"></textarea>
+            <input type="number" id="feedback-points" placeholder="পয়েন্ট দিন (পজিটিভ বা নেগেটিভ)">
+            <button onclick="submitFeedback()">জমা দিন</button>
+            
+            <!-- পয়েন্টস দেখা -->
+            <h3>আপনার পয়েন্টস</h3>
+            <div id="total-points" class="total-points"></div>
+            <h4>ফিডব্যাক লিস্ট</h4>
+            <div id="feedback-list"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js';
+        import { getDatabase, ref, onValue, push, set, get, child } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js';
+
+        // Firebase কনফিগারেশন
+        const firebaseConfig = {
+            apiKey: "AIzaSyC1IbPpoJtMhIWc3aaOpS1gUksc5pL3zOI",
+            authDomain: "point-bf5dd.firebaseapp.com",
+            databaseURL: "https://point-bf5dd-default-rtdb.firebaseio.com",
+            projectId: "point-bf5dd",
+            storageBucket: "point-bf5dd.firebasestorage.app",
+            messagingSenderId: "824687456854",
+            appId: "1:824687456854:web:845dcf65a8df4b571c01f7"
+        };
+
+        // Firebase ইনিশিয়ালাইজ
+        let app;
+        try {
+            app = initializeApp(firebaseConfig);
+            console.log('Firebase initialized successfully');
+        } catch (error) {
+            console.error('Firebase init error:', error);
+            alert('Firebase কনফিগারেশন সমস্যা! কনসোল চেক করো।');
+        }
+        const db = getDatabase(app);
+
+        const users = ['noman', 'rima'];
+        const defaultPasswords = { noman: 'password1', rima: 'password2' };
+        const unlockDays = 7;
+
+        let currentUser = null;
+
+        // ডিফল্ট পাসওয়ার্ড সেট করা যদি না থাকে
+        const passwordsRef = ref(db, 'passwords');
+        get(passwordsRef).then(snapshot => {
+            if (!snapshot.exists()) {
+                set(passwordsRef, defaultPasswords);
+                console.log('Default passwords set');
+            }
+        }).catch(error => {
+            console.error('Error setting defaults:', error);
+        });
+
+        window.login = function() {
+            const selectedUser = document.getElementById('user-select').value;
+            const password = document.getElementById('password').value;
+
+            const userPassRef = child(passwordsRef, selectedUser);
+            get(userPassRef).then(snapshot => {
+                const storedPass = snapshot.val();
+                if (storedPass === password) {
+                    currentUser = selectedUser;
+                    document.getElementById('current-user').textContent = selectedUser;
+                    document.getElementById('login-section').classList.add('hidden');
+                    document.getElementById('app-section').classList.remove('hidden');
+                    listenToFeedbacks();
+                } else {
+                    document.getElementById('login-error').textContent = 'ভুল পাসওয়ার্ড! ডিফল্ট: noman=password1, rima=password2';
+                }
+            }).catch(error => {
+                console.error('Login error:', error);
+                document.getElementById('login-error').textContent = 'লগইন সমস্যা: ' + error.message;
+            });
+        }
+
+        window.logout = function() {
+            currentUser = null;
+            document.getElementById('login-section').classList.remove('hidden');
+            document.getElementById('app-section').classList.add('hidden');
+            document.getElementById('change-password').classList.add('hidden');
+            document.getElementById('password').value = '';
+            document.getElementById('login-error').textContent = '';
+            // লিসেনার অফ করো (onValue অফ করার দরকার নেই, কিন্তু পেজ রিলোডে ঠিক হবে)
+        }
+
+        window.showChangePassword = function() {
+            document.getElementById('change-password').classList.toggle('hidden');
+        }
+
+        window.changePassword = function() {
+            const oldPass = document.getElementById('old-password').value;
+            const newPass = document.getElementById('new-password').value;
+
+            const userPassRef = child(passwordsRef, currentUser);
+            get(userPassRef).then(snapshot => {
+                if (snapshot.val() === oldPass) {
+                    set(userPassRef, newPass);
+                    alert('পাসওয়ার্ড চেঞ্জ হয়েছে!');
+                    document.getElementById('change-password').classList.add('hidden');
+                    document.getElementById('old-password').value = '';
+                    document.getElementById('new-password').value = '';
+                    document.getElementById('password-error').textContent = '';
+                } else {
+                    document.getElementById('password-error').textContent = 'পুরানো পাসওয়ার্ড ভুল!';
+                }
+            }).catch(error => {
+                console.error(error);
+            });
+        }
+
+        window.submitFeedback = function() {
+            const text = document.getElementById('feedback-text').value.trim();
+            const points = parseInt(document.getElementById('feedback-points').value);
+            if (!text || isNaN(points)) {
+                alert('সব ফিল্ড পূরণ করুন!');
+                return;
+            }
+
+            const recipient = currentUser === 'noman' ? 'rima' : 'noman';
+            const feedback = {
+                from: currentUser,
+                to: recipient,
+                text: text,
+                points: points,
+                date: new Date().toISOString()
+            };
+
+            const feedbacksRef = ref(db, 'feedbacks');
+            push(feedbacksRef, feedback);
+
+            document.getElementById('feedback-text').value = '';
+            document.getElementById('feedback-points').value = '';
+        }
+
+        window.listenToFeedbacks = function() {
+            const feedbacksRef = ref(db, 'feedbacks');
+            onValue(feedbacksRef, snapshot => {
+                const feedbacksData = snapshot.val();
+                const feedbacks = [];
+
+                if (feedbacksData) {
+                    Object.values(feedbacksData).forEach(fb => {
+                        feedbacks.push(fb);
+                    });
+                }
+
+                // নতুন ফিডব্যাক সবার উপরে: date descending সর্ট
+                feedbacks.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                const list = document.getElementById('feedback-list');
+                list.innerHTML = '';
+
+                let totalPoints = 0;
+                const now = new Date();
+
+                feedbacks.forEach(fb => {
+                    if (fb.to === currentUser) {
+                        const fbDate = new Date(fb.date);
+                        const daysPassed = (now - fbDate) / (1000 * 60 * 60 * 24);
+                        const isUnlocked = daysPassed >= unlockDays;
+
+                        const item = document.createElement('div');
+                        item.classList.add('feedback-item');
+                        item.innerHTML = `
+                            <p><strong>নাম:</strong> ${fb.from}</p>
+                            <p><strong>বর্ণনা:</strong> ${isUnlocked ? fb.points : 'উন্মুক্ত হয়নি (আরও ' + Math.ceil(unlockDays - daysPassed) + ' দিন অপেক্ষা)'}</p>
+                            <p><strong>পয়েন্ট:</strong> ${isUnlocked ? fb.points : 'উন্মুক্ত হয়নি (আরও ' + Math.ceil(unlockDays - daysPassed) + ' দিন অপেক্ষা)'}</p>
+                            <p><strong>তারিখ:</strong> ${fb.date}</p>
+                        `;
+                        list.appendChild(item);
+
+                        if (isUnlocked) {
+                            totalPoints += fb.points;
+                        }
+                    }
+                });
+
+                document.getElementById('total-points').textContent = `টোটাল পয়েন্ট: ${totalPoints}`;
+            });
+        }
+    </script>
+</body>
+</html>
