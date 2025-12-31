@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>পয়েন্ট শেয়ার অ্যাপ</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;700&display=swap" rel="stylesheet">
-    <!-- Firebase SDK – মডুলার ভার্সন -->
+    
     <script src="https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js"></script>
+    
     <style>
         body {
             font-family: 'Noto Sans Bengali', sans-serif;
@@ -29,8 +30,8 @@
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
         }
         h1, h2, h3, h4 {
-            color: #2c3e50;
             text-align: center;
+            color: #2c3e50;
         }
         input, select, textarea {
             width: 100%;
@@ -38,75 +39,438 @@
             margin: 10px 0;
             border: 1px solid #ddd;
             border-radius: 8px;
-            box-sizing: border-box;
-            font-size: 16px;
         }
         button {
             width: 100%;
             padding: 12px;
-            background-color: #3498db;
+            background: #3498db;
             color: white;
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            font-size: 16px;
-            transition: background-color 0.3s;
         }
-        button:hover {
-            background-color: #2980b9;
-        }
-        .hidden {
-            display: none;
-        }
+        button:hover { background: #2980b9; }
+        .hidden { display: none; }
         .feedback-item {
-            background: #f9f9f9;
+            background: #fafafa;
             border: 1px solid #eee;
             padding: 15px;
-            margin: 15px 0;
+            margin: 10px 0;
             border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
         .total-points {
-            font-size: 1.4em;
+            text-align: center;
+            font-size: 20px;
             font-weight: bold;
             color: #27ae60;
-            margin: 20px 0;
-            text-align: center;
-        }
-        .error {
-            color: #e74c3c;
-            text-align: center;
-            margin: 10px 0;
-        }
-        .button-group {
-            display: flex;
-            gap: 10px;
             margin: 15px 0;
         }
-        .button-group button {
-            flex: 1;
-        }
+        .error { color: red; text-align: center; }
+        .button-group { display: flex; gap: 10px; }
+        .button-group button { flex: 1; }
     </style>
 </head>
+
 <body>
-    <div class="container">
-        <h1>পয়েন্ট শেয়ার অ্যাপ</h1>
-       
-        <!-- লগইন ফর্ম -->
-        <div id="login-section">
-            <h2>লগইন করুন</h2>
-            <select id="user-select">
-                <option value="noman">নোমান (noman)</option>
-                <option value="rima">রিমা (rima)</option>
-            </select>
-            <input type="password" id="password" placeholder="পাসওয়ার্ড দিন">
-            <button onclick="login()">লগইন</button>
-            <p id="login-error" class="error"></p>
+<div class="container">
+
+    <h1>পয়েন্ট শেয়ার অ্যাপ</h1>
+
+    <!-- LOGIN -->
+    <div id="login-section">
+        <h2>লগইন করুন</h2>
+        <select id="user-select">
+            <option value="noman">নোমান</option>
+            <option value="rima">রিমা</option>
+        </select>
+        <input type="password" id="password" placeholder="পাসওয়ার্ড দিন">
+        <button onclick="login()">লগইন</button>
+        <p id="login-error" class="error"></p>
+    </div>
+
+    <!-- APP -->
+    <div id="app-section" class="hidden">
+        <h2>স্বাগতম, <span id="current-user"></span>!</h2>
+
+        <div class="button-group">
+            <button onclick="logout()">লগআউট</button>
+            <button onclick="showChangePassword()">পাসওয়ার্ড চেঞ্জ</button>
         </div>
-       
-        <!-- মেইন অ্যাপ সেকশন -->
-        <div id="app-section" class="hidden">
-            <h2>স্বাগতম, <span id="current-user"></span>!</h2>
+
+        <!-- Change password -->
+        <div id="change-password" class="hidden">
+            <h3>পাসওয়ার্ড পরিবর্তন</h3>
+            <input type="password" id="old-password" placeholder="পুরানো পাসওয়ার্ড">
+            <input type="password" id="new-password" placeholder="নতুন পাসওয়ার্ড">
+            <button onclick="changePassword()">আপডেট</button>
+            <p id="password-error" class="error"></p>
+        </div>
+
+
+        <h3>ফিডব্যাক দিন</h3>
+        <textarea id="feedback-text" placeholder="বর্ণনা লিখুন"></textarea>
+        <input type="number" id="feedback-points" placeholder="পয়েন্ট (পজিটিভ/নেগেটিভ)">
+        <button onclick="submitFeedback()">জমা দিন</button>
+
+        <h3>আপনার মোট পয়েন্ট</h3>
+        <div id="total-points" class="total-points"></div>
+
+        <h4>ফিডব্যাক লিস্ট</h4>
+        <div id="feedback-list"></div>
+    </div>
+
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+    import { getDatabase, ref, onValue, push, set, get, child } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
+
+    // Firebase setup
+    const firebaseConfig = {
+        apiKey: "AIzaSyC1IbPpoJtMhIWc3aaOpS1gUksc5pL3zOI",
+        authDomain: "point-bf5dd.firebaseapp.com",
+        databaseURL: "https://point-bf5dd-default-rtdb.firebaseio.com",
+        projectId: "point-bf5dd",
+        storageBucket: "point-bf5dd.firebasestorage.app",
+        messagingSenderId: "824687456854",
+        appId: "1:824687456854:web:845dcf65a8df4b571c01f7"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    const defaultPasswords = { noman: "password1", rima: "password2" };
+    const passwordsRef = ref(db, "passwords");
+
+    get(passwordsRef).then(s => {
+        if (!s.exists()) set(passwordsRef, defaultPasswords);
+    });
+
+    let currentUser = null;
+
+    // LOGIN ----------
+    window.login = () => {
+        const u = document.getElementById("user-select").value;
+        const p = document.getElementById("password").value;
+
+        get(child(passwordsRef, u)).then(s => {
+            if (s.val() === p) {
+                currentUser = u;
+                document.getElementById("current-user").innerText = u;
+                document.getElementById("login-section").classList.add("hidden");
+                document.getElementById("app-section").classList.remove("hidden");
+                listenToFeedbacks();
+            } else {
+                document.getElementById("login-error").innerText = "ভুল পাসওয়ার্ড!";
+            }
+        });
+    };
+
+    // LOGOUT ----------
+    window.logout = () => location.reload();
+
+    // CHANGE PASSWORD ----------
+    window.showChangePassword = () =>
+        document.getElementById("change-password").classList.toggle("hidden");
+
+    window.changePassword = () => {
+        const oldP = document.getElementById("old-password").value;
+        const newP = document.getElementById("new-password").value;
+
+        get(child(passwordsRef, currentUser)).then(s => {
+            if (s.val() === oldP) {
+                set(child(passwordsRef, currentUser), newP);
+                alert("পাসওয়ার্ড পরিবর্তন হয়েছে!");
+            } else {
+                document.getElementById("password-error").innerText = "পুরানো পাসওয়ার্ড ভুল";
+            }
+        });
+    };
+
+    // SUBMIT FEEDBACK ----------
+    window.submitFeedback = () => {
+        const text = document.getElementById("feedback-text").value.trim();
+        const points = parseInt(document.getElementById("feedback-points").value);
+
+        if (!text || isNaN(points)) return alert("সব ঘর পূরণ করুন!");
+
+        const toUser = currentUser === "noman" ? "rima" : "noman";
+
+        push(ref(db, "feedbacks"), {
+            from: currentUser, to: toUser, text, points,
+            date: new Date().toISOString()
+        });
+
+        document.getElementById("feedback-text").value = "";
+        document.getElementById("feedback-points").value = "";
+    };
+
+    // SHOW FEEDBACK ----------
+    window.listenToFeedbacks = () => {
+        onValue(ref(db, "feedbacks"), s => {
+            const data = s.val() || {};
+            const list = document.getElementById("feedback-list");
+            list.innerHTML = "";
+            let total = 0;
+
+            Object.values(data)
+                .filter(f => f.to === currentUser)
+                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                .forEach(f => {
+                    total += f.points;
+                    list.innerHTML += `
+                        <div class="feedback-item">
+                            <p><strong>প্রেরক:</strong> ${f.from}</p>
+                            <p><strong>বর্ণনা:</strong> ${f.text}</p>
+                            <p><strong>পয়েন্ট:</strong> ${f.points}</p>
+                            <p><strong>তারিখ:</strong> ${f.date}</p>
+                        </div>
+                    `;
+                });
+
+            document.getElementById("total-points").innerText = `মোট পয়েন্ট: ${total}`;
+        });
+    };
+</script>
+
+</body>
+</html><!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>পয়েন্ট শেয়ার অ্যাপ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;700&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js"></script>
+    
+    <style>
+        body {
+            font-family: 'Noto Sans Bengali', sans-serif;
+            background-color: #f0f4f8;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #333;
+        }
+        .container {
+            max-width: 500px;
+            width: 100%;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        h1, h2, h3, h4 {
+            text-align: center;
+            color: #2c3e50;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        button:hover { background: #2980b9; }
+        .hidden { display: none; }
+        .feedback-item {
+            background: #fafafa;
+            border: 1px solid #eee;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+        }
+        .total-points {
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            color: #27ae60;
+            margin: 15px 0;
+        }
+        .error { color: red; text-align: center; }
+        .button-group { display: flex; gap: 10px; }
+        .button-group button { flex: 1; }
+    </style>
+</head>
+
+<body>
+<div class="container">
+
+    <h1>পয়েন্ট শেয়ার অ্যাপ</h1>
+
+    <!-- LOGIN -->
+    <div id="login-section">
+        <h2>লগইন করুন</h2>
+        <select id="user-select">
+            <option value="noman">নোমান</option>
+            <option value="rima">রিমা</option>
+        </select>
+        <input type="password" id="password" placeholder="পাসওয়ার্ড দিন">
+        <button onclick="login()">লগইন</button>
+        <p id="login-error" class="error"></p>
+    </div>
+
+    <!-- APP -->
+    <div id="app-section" class="hidden">
+        <h2>স্বাগতম, <span id="current-user"></span>!</h2>
+
+        <div class="button-group">
+            <button onclick="logout()">লগআউট</button>
+            <button onclick="showChangePassword()">পাসওয়ার্ড চেঞ্জ</button>
+        </div>
+
+        <!-- Change password -->
+        <div id="change-password" class="hidden">
+            <h3>পাসওয়ার্ড পরিবর্তন</h3>
+            <input type="password" id="old-password" placeholder="পুরানো পাসওয়ার্ড">
+            <input type="password" id="new-password" placeholder="নতুন পাসওয়ার্ড">
+            <button onclick="changePassword()">আপডেট</button>
+            <p id="password-error" class="error"></p>
+        </div>
+
+
+        <h3>ফিডব্যাক দিন</h3>
+        <textarea id="feedback-text" placeholder="বর্ণনা লিখুন"></textarea>
+        <input type="number" id="feedback-points" placeholder="পয়েন্ট (পজিটিভ/নেগেটিভ)">
+        <button onclick="submitFeedback()">জমা দিন</button>
+
+        <h3>আপনার মোট পয়েন্ট</h3>
+        <div id="total-points" class="total-points"></div>
+
+        <h4>ফিডব্যাক লিস্ট</h4>
+        <div id="feedback-list"></div>
+    </div>
+
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+    import { getDatabase, ref, onValue, push, set, get, child } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
+
+    // Firebase setup
+    const firebaseConfig = {
+        apiKey: "AIzaSyC1IbPpoJtMhIWc3aaOpS1gUksc5pL3zOI",
+        authDomain: "point-bf5dd.firebaseapp.com",
+        databaseURL: "https://point-bf5dd-default-rtdb.firebaseio.com",
+        projectId: "point-bf5dd",
+        storageBucket: "point-bf5dd.firebasestorage.app",
+        messagingSenderId: "824687456854",
+        appId: "1:824687456854:web:845dcf65a8df4b571c01f7"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    const defaultPasswords = { noman: "password1", rima: "password2" };
+    const passwordsRef = ref(db, "passwords");
+
+    get(passwordsRef).then(s => {
+        if (!s.exists()) set(passwordsRef, defaultPasswords);
+    });
+
+    let currentUser = null;
+
+    // LOGIN ----------
+    window.login = () => {
+        const u = document.getElementById("user-select").value;
+        const p = document.getElementById("password").value;
+
+        get(child(passwordsRef, u)).then(s => {
+            if (s.val() === p) {
+                currentUser = u;
+                document.getElementById("current-user").innerText = u;
+                document.getElementById("login-section").classList.add("hidden");
+                document.getElementById("app-section").classList.remove("hidden");
+                listenToFeedbacks();
+            } else {
+                document.getElementById("login-error").innerText = "ভুল পাসওয়ার্ড!";
+            }
+        });
+    };
+
+    // LOGOUT ----------
+    window.logout = () => location.reload();
+
+    // CHANGE PASSWORD ----------
+    window.showChangePassword = () =>
+        document.getElementById("change-password").classList.toggle("hidden");
+
+    window.changePassword = () => {
+        const oldP = document.getElementById("old-password").value;
+        const newP = document.getElementById("new-password").value;
+
+        get(child(passwordsRef, currentUser)).then(s => {
+            if (s.val() === oldP) {
+                set(child(passwordsRef, currentUser), newP);
+                alert("পাসওয়ার্ড পরিবর্তন হয়েছে!");
+            } else {
+                document.getElementById("password-error").innerText = "পুরানো পাসওয়ার্ড ভুল";
+            }
+        });
+    };
+
+    // SUBMIT FEEDBACK ----------
+    window.submitFeedback = () => {
+        const text = document.getElementById("feedback-text").value.trim();
+        const points = parseInt(document.getElementById("feedback-points").value);
+
+        if (!text || isNaN(points)) return alert("সব ঘর পূরণ করুন!");
+
+        const toUser = currentUser === "noman" ? "rima" : "noman";
+
+        push(ref(db, "feedbacks"), {
+            from: currentUser, to: toUser, text, points,
+            date: new Date().toISOString()
+        });
+
+        document.getElementById("feedback-text").value = "";
+        document.getElementById("feedback-points").value = "";
+    };
+
+    // SHOW FEEDBACK ----------
+    window.listenToFeedbacks = () => {
+        onValue(ref(db, "feedbacks"), s => {
+            const data = s.val() || {};
+            const list = document.getElementById("feedback-list");
+            list.innerHTML = "";
+            let total = 0;
+
+            Object.values(data)
+                .filter(f => f.to === currentUser)
+                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                .forEach(f => {
+                    total += f.points;
+                    list.innerHTML += `
+                        <div class="feedback-item">
+                            <p><strong>প্রেরক:</strong> ${f.from}</p>
+                            <p><strong>বর্ণনা:</strong> ${f.text}</p>
+                            <p><strong>পয়েন্ট:</strong> ${f.points}</p>
+                            <p><strong>তারিখ:</strong> ${f.date}</p>
+                        </div>
+                    `;
+                });
+
+            document.getElementById("total-points").innerText = `মোট পয়েন্ট: ${total}`;
+        });
+    };
+</script>
+
+</body>
+</html>            <h2>স্বাগতম, <span id="current-user"></span>!</h2>
             <div class="button-group">
                 <button onclick="logout()">লগআউট</button>
                 <button onclick="showChangePassword()">পাসওয়ার্ড চেঞ্জ</button>
@@ -285,3 +649,4 @@
 </html></body>
 
 </html>
+
