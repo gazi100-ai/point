@@ -91,7 +91,7 @@
 <body>
     <div class="container">
         <h1>পয়েন্ট শেয়ার অ্যাপ</h1>
-        
+       
         <!-- লগইন ফর্ম -->
         <div id="login-section">
             <h2>লগইন করুন</h2>
@@ -103,7 +103,7 @@
             <button onclick="login()">লগইন</button>
             <p id="login-error" class="error"></p>
         </div>
-        
+       
         <!-- মেইন অ্যাপ সেকশন -->
         <div id="app-section" class="hidden">
             <h2>স্বাগতম, <span id="current-user"></span>!</h2>
@@ -111,7 +111,7 @@
                 <button onclick="logout()">লগআউট</button>
                 <button onclick="showChangePassword()">পাসওয়ার্ড চেঞ্জ</button>
             </div>
-            
+           
             <!-- পাসওয়ার্ড চেঞ্জ ফর্ম -->
             <div id="change-password" class="hidden">
                 <h3>পাসওয়ার্ড চেঞ্জ করুন</h3>
@@ -120,13 +120,13 @@
                 <button onclick="changePassword()">চেঞ্জ করুন</button>
                 <p id="password-error" class="error"></p>
             </div>
-            
+           
             <!-- ফিডব্যাক দেওয়া -->
             <h3>অন্যজনের কাজের উপর ফিডব্যাক দিন</h3>
             <textarea id="feedback-text" placeholder="কাজের বর্ণনা লিখুন" rows="4"></textarea>
             <input type="number" id="feedback-points" placeholder="পয়েন্ট দিন (পজিটিভ বা নেগেটিভ)">
             <button onclick="submitFeedback()">জমা দিন</button>
-            
+           
             <!-- পয়েন্টস দেখা -->
             <h3>আপনার পয়েন্টস</h3>
             <div id="total-points" class="total-points"></div>
@@ -134,11 +134,9 @@
             <div id="feedback-list"></div>
         </div>
     </div>
-
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js';
         import { getDatabase, ref, onValue, push, set, get, child } from 'https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js';
-
         // Firebase কনফিগারেশন
         const firebaseConfig = {
             apiKey: "AIzaSyC1IbPpoJtMhIWc3aaOpS1gUksc5pL3zOI",
@@ -149,7 +147,6 @@
             messagingSenderId: "824687456854",
             appId: "1:824687456854:web:845dcf65a8df4b571c01f7"
         };
-
         // Firebase ইনিশিয়ালাইজ
         let app;
         try {
@@ -160,13 +157,10 @@
             alert('Firebase কনফিগারেশন সমস্যা! কনসোল চেক করো।');
         }
         const db = getDatabase(app);
-
         const users = ['noman', 'rima'];
         const defaultPasswords = { noman: 'password1', rima: 'password2' };
         const unlockDays = 7;
-
         let currentUser = null;
-
         // ডিফল্ট পাসওয়ার্ড সেট করা যদি না থাকে
         const passwordsRef = ref(db, 'passwords');
         get(passwordsRef).then(snapshot => {
@@ -177,11 +171,9 @@
         }).catch(error => {
             console.error('Error setting defaults:', error);
         });
-
         window.login = function() {
             const selectedUser = document.getElementById('user-select').value;
             const password = document.getElementById('password').value;
-
             const userPassRef = child(passwordsRef, selectedUser);
             get(userPassRef).then(snapshot => {
                 const storedPass = snapshot.val();
@@ -199,7 +191,6 @@
                 document.getElementById('login-error').textContent = 'লগইন সমস্যা: ' + error.message;
             });
         }
-
         window.logout = function() {
             currentUser = null;
             document.getElementById('login-section').classList.remove('hidden');
@@ -209,15 +200,12 @@
             document.getElementById('login-error').textContent = '';
             // লিসেনার অফ করো (onValue অফ করার দরকার নেই, কিন্তু পেজ রিলোডে ঠিক হবে)
         }
-
         window.showChangePassword = function() {
             document.getElementById('change-password').classList.toggle('hidden');
         }
-
         window.changePassword = function() {
             const oldPass = document.getElementById('old-password').value;
             const newPass = document.getElementById('new-password').value;
-
             const userPassRef = child(passwordsRef, currentUser);
             get(userPassRef).then(snapshot => {
                 if (snapshot.val() === oldPass) {
@@ -234,7 +222,6 @@
                 console.error(error);
             });
         }
-
         window.submitFeedback = function() {
             const text = document.getElementById('feedback-text').value.trim();
             const points = parseInt(document.getElementById('feedback-points').value);
@@ -242,7 +229,6 @@
                 alert('সব ফিল্ড পূরণ করুন!');
                 return;
             }
-
             const recipient = currentUser === 'noman' ? 'rima' : 'noman';
             const feedback = {
                 from: currentUser,
@@ -251,41 +237,32 @@
                 points: points,
                 date: new Date().toISOString()
             };
-
             const feedbacksRef = ref(db, 'feedbacks');
             push(feedbacksRef, feedback);
-
             document.getElementById('feedback-text').value = '';
             document.getElementById('feedback-points').value = '';
         }
-
         window.listenToFeedbacks = function() {
             const feedbacksRef = ref(db, 'feedbacks');
             onValue(feedbacksRef, snapshot => {
                 const feedbacksData = snapshot.val();
                 const feedbacks = [];
-
                 if (feedbacksData) {
                     Object.values(feedbacksData).forEach(fb => {
                         feedbacks.push(fb);
                     });
                 }
-
                 // নতুন ফিডব্যাক সবার উপরে: date descending সর্ট
                 feedbacks.sort((a, b) => new Date(b.date) - new Date(a.date));
-
                 const list = document.getElementById('feedback-list');
                 list.innerHTML = '';
-
                 let totalPoints = 0;
                 const now = new Date();
-
                 feedbacks.forEach(fb => {
                     if (fb.to === currentUser) {
                         const fbDate = new Date(fb.date);
                         const daysPassed = (now - fbDate) / (1000 * 60 * 60 * 24);
                         const isUnlocked = daysPassed >= unlockDays;
-
                         const item = document.createElement('div');
                         item.classList.add('feedback-item');
                         item.innerHTML = `
@@ -295,16 +272,16 @@
                             <p><strong>তারিখ:</strong> ${fb.date}</p>
                         `;
                         list.appendChild(item);
-
                         if (isUnlocked) {
                             totalPoints += fb.points;
                         }
                     }
                 });
-
                 document.getElementById('total-points').textContent = `টোটাল পয়েন্ট: ${totalPoints}`;
             });
         }
     </script>
 </body>
+</html></body>
+
 </html>
